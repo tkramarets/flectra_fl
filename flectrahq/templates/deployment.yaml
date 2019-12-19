@@ -1,0 +1,110 @@
+apiVersion: {{ template "flectra.deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ template "flectra.fullname" . }}
+  labels:
+    app: {{ template "flectra.name" . }}
+    chart: {{ template "flectra.chart" . }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "flectra.name" . }}
+      release: "{{ .Release.Name }}"
+  template:
+    metadata:
+      labels:
+        app: {{ template "flectra.name" . }}
+        chart: {{ template "flectra.chart" . }}
+        release: {{ .Release.Name | quote }}
+    spec:
+{{- include "flectra.imagePullSecrets" . | indent 6 }}
+      containers:
+      - name: {{ template "flectra.fullname" . }}
+        image: {{ template "flectra.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+        env:
+        - name: POSTGRESQL_HOST
+          value: {{ ternary (include "flectra.postgresql.fullname" .) .Values.externalDatabase.host .Values.postgresql.enabled | quote }}
+        - name: POSTGRESQL_USER
+          value: {{ ternary "postgres" .Values.externalDatabase.user .Values.postgresql.enabled | quote }}
+        - name: POSTGRESQL_PORT_NUMBER
+          value: {{ ternary "5432" .Values.externalDatabase.port .Values.postgresql.enabled | quote }}
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ ternary (include "flectra.postgresql.fullname" .) (printf "%s-%s" .Release.Name "externaldb") .Values.postgresql.enabled | quote }}
+              key: {{ ternary "postgresql-password" "db-password" .Values.postgresql.enabled | quote }}
+        - name: FLECTRA_EMAIL
+          value: {{ .Values.flectraEmail | quote }}
+        - name: FLECTRA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "flectra.fullname" . }}
+              key: flectra-password
+        {{- if .Values.smtpHost }}
+        - name: SMTP_HOST
+          value: {{ .Values.smtpHost | quote }}
+        {{- end }}
+        {{- if .Values.smtpPort }}
+        - name: SMTP_PORT
+          value: {{ .Values.smtpPort | quote }}
+        {{- end }}
+        {{- if .Values.smtpUser }}
+        - name: SMTP_USER
+          value: {{ .Values.smtpUser | quote }}
+        {{- end }}
+        {{- if .Values.smtpPassword }}
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "flectra.fullname" . }}
+              key: smtp-password
+        {{- end }}
+        {{- if .Values.smtpProtocol }}
+        - name: SMTP_PROTOCOL
+          value: {{ .Values.smtpProtocol | quote }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: 7073
+        {{- if .Values.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+        {{- end }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        volumeMounts:
+        - name: flectra-data
+          mountPath: flectrahq/flectra
+      volumes:
+      - name: flectra-data
+      {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.persistence.existingClaim | default (include "flectra.fullname" .) }}
+      {{- else }}
+        emptyDir: {}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}

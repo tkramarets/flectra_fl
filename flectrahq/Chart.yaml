@@ -1,0 +1,19 @@
+apiVersion: v1
+name: flectra
+version: 1.6.2
+appVersion: 1.6.2.20191202
+description: A suite of web based open source business apps.
+home: https://www.flectrahq.com/
+icon: https://store.flectrahq.com/logo.png
+keywords:
+- flectra
+- crm
+- www
+- http
+- web
+sources:
+- https://gitlab.com/flectra-deploy/docker-rancher
+maintainers:
+- name: FlectraHQ
+  email: flectra@flectrahq.com
+engine: gotpl
